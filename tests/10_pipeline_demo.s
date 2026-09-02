@@ -1,6 +1,7 @@
 # Written for the pipeline visualiser: one of each interesting thing, in an
 # order that reads well when you step through it a cycle at a time.
 #
+#   - an add and a sub, so both ALU operations have real numbers behind them
 #   - an arithmetic result forwarded to the instruction right behind it
 #   - a store, then a load of the same word
 #   - a load feeding the very next instruction, which on a longer pipeline
@@ -25,6 +26,11 @@
     bne  t4, t5, fail          # 2  5 + 7, stored, reloaded, + 1 == 13
 
     addi s1, s1, 1
+    sub  a6, t2, t0            # the same journey through the datapath, minus
+    li   a7, 7
+    bne  a6, a7, fail          # 3  12 - 5 == 7
+
+    addi s1, s1, 1
     li   t0, 0                 # a short counted loop: the branch back is taken
     li   t1, 3                 # three times, and never costs a bubble
 loop:
@@ -32,7 +38,7 @@ loop:
     addi t1, t1, -1
     bne  t1, x0, loop
     li   t2, 6
-    bne  t0, t2, fail          # 3  2 + 2 + 2 == 6
+    bne  t0, t2, fail          # 4  2 + 2 + 2 == 6
 
     addi s1, s1, 1
     la   a0, handler
@@ -40,7 +46,7 @@ loop:
     li   a1, 0
     ecall                      # traps; the handler resumes at the next instruction
     li   t6, 1
-    bne  a1, t6, fail          # 4  the handler ran and mret came back here
+    bne  a1, t6, fail          # 5  the handler ran and mret came back here
 
     li   s1, 1
 fail:
