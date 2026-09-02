@@ -5,7 +5,7 @@
 #   - a store, then a load of the same word
 #   - a load feeding the very next instruction, which on a longer pipeline
 #     would cost a stall and here does not
-#   - a taken branch, resolved without a bubble
+#   - a backward branch, taken, resolved without a bubble
 #   - a trap that vectors through mtvec and returns through mret
 #
 # It is a self-checking test like the rest: it stores 1 when everything passed.
@@ -25,12 +25,22 @@
     bne  t4, t5, fail          # 2  5 + 7, stored, reloaded, + 1 == 13
 
     addi s1, s1, 1
+    li   t0, 0                 # a short counted loop: the branch back is taken
+    li   t1, 3                 # three times, and never costs a bubble
+loop:
+    addi t0, t0, 2
+    addi t1, t1, -1
+    bne  t1, x0, loop
+    li   t2, 6
+    bne  t0, t2, fail          # 3  2 + 2 + 2 == 6
+
+    addi s1, s1, 1
     la   a0, handler
     csrw mtvec, a0
     li   a1, 0
     ecall                      # traps; the handler resumes at the next instruction
     li   t6, 1
-    bne  a1, t6, fail          # 3  the handler ran and mret came back here
+    bne  a1, t6, fail          # 4  the handler ran and mret came back here
 
     li   s1, 1
 fail:
