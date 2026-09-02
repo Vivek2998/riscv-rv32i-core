@@ -119,7 +119,30 @@ usual pseudo-instructions:
 python3 tests/assemble.py tests/02_alu.s build/02_alu.hex
 ```
 
-To watch a program run:
+## Watching it run
+
+`make trace PROG=10_pipeline_demo` runs a program and prints what every pipeline
+stage was holding, cycle by cycle:
+
+```
+ cyc st    fetch    | stage 2  decode / read                    | stage 3  execute / write back | notes
+  10 run   0018     | 0014  add t2, t0, t1   t0=00000005  t1=00000007* | 0010  t1 <= 00000007  | * forwarded from stage 3
+  11 run   001c     | 0018  sw t2, 0(s0)     s0=00000800  t2=0000000c* | 0014  t2 <= 0000000c  | * forwarded, store 0000000c -> [0800]
+  12 run   0020     | 001c  lw t3, 0(s0)     s0=00000800             | 0018  sw t2, 0(s0)      |
+  13 run   0024     | 0020  addi t4, t3, 1   t3=0000000c*            | 001c  t3 <= 0000000c    | * forwarded from stage 3
+  21 run   0044     | 0040  ecall            zero=00000000           | 003c  a1 <= 00000000    | TRAP: ecall / external interrupt
+  22 trap  005c     | --  flushed                                    | 0040  ecall             |
+```
+
+A `*` marks an operand that arrived on the register file's forwarding path rather
+than out of the register itself — cycle 13 is the load-use case, where a longer
+pipeline would have to stall and this one does not. `tests/10_pipeline_demo.s` is
+written for this: one of each interesting thing, in an order that reads well when
+stepped through.
+
+`TRACE_JSON=<file>` writes the same trace as JSON instead of printing it.
+
+To open a waveform instead:
 
 ```
 make wave PROG=07_trap

@@ -161,7 +161,11 @@ def li_parts(rd, value):
 
 
 def parse(src):
-    """First pass: strip comments, expand pseudo-ops, record label addresses."""
+    """First pass: strip comments, expand pseudo-ops, record label addresses.
+
+    Each item keeps the source line it came from, so `assemble.py` can emit a
+    listing that maps an address back to what was written there.
+    """
     items, labels, pc = [], {}, 0
     for lineno, raw in enumerate(src.splitlines(), 1):
         line = raw.split("#")[0].split("//")[0].strip()
@@ -179,7 +183,7 @@ def parse(src):
         try:
             if mnem in (".word", ".dword"):
                 for a in args:
-                    items.append((pc, lineno, ".word", [a]))
+                    items.append((pc, lineno, ".word", [a], line))
                     pc += 4
                 continue
             if mnem == "li":
@@ -192,7 +196,7 @@ def parse(src):
             else:
                 exp = expand(mnem, args)
             for e in exp:
-                items.append((pc, lineno, e[0], e[1]))
+                items.append((pc, lineno, e[0], e[1], line))
                 pc += 4
         except AsmError as e:
             raise AsmError(f"line {lineno}: {e}")
@@ -265,29 +269,48 @@ def encode(pc, mnem, args, labels):
     raise AsmError(f"unhandled format {fmt}")
 
 
-def assemble(src):
+def assemble(src, listing=None):
+    """Assemble to a list of 32-bit words.
+
+    If `listing` is a dict it is filled in as {address: {...}}, describing what
+    sits at each address: the instruction as assembled, the source line it came
+    from, and that line's number.
+    """
     items, labels = parse(src)
     words = []
-    for pc, lineno, mnem, args in items:
+    for pc, lineno, mnem, args, text in items:
         try:
-            words.append(encode(pc, mnem, args, labels))
+            word = encode(pc, mnem, args, labels)
         except AsmError as e:
             raise AsmError(f"line {lineno}: {mnem} {' '.join(args)}: {e}")
+        words.append(word)
+        if listing is not None:
+            listing[pc] = {
+                "word": word,
+                "asm": (mnem + " " + ", ".join(args)).strip(),
+                "source": text,
+                "line": lineno,
+            }
     return words
 
 
 def main():
-    if len(sys.argv) != 3:
-        sys.exit(f"usage: {sys.argv[0]} <input.s> <output.hex>")
+    if len(sys.argv) not in (3, 4):
+        sys.exit(f"usage: {sys.argv[0]} <input.s> <output.hex> [listing.json]")
     with open(sys.argv[1]) as f:
         src = f.read()
+    listing = {} if len(sys.argv) == 4 else None
     try:
-        words = assemble(src)
+        words = assemble(src, listing)
     except AsmError as e:
         sys.exit(f"{sys.argv[1]}: {e}")
     with open(sys.argv[2], "w") as f:
         for w in words:
             f.write(f"{w:08x}\n")
+    if listing is not None:
+        import json
+        with open(sys.argv[3], "w") as f:
+            json.dump({str(k): v for k, v in sorted(listing.items())}, f, indent=1)
     print(f"{sys.argv[1]}: {len(words)} instructions -> {sys.argv[2]}")
 
 

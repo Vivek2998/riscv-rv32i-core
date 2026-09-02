@@ -7,7 +7,8 @@
 #   make unit     module-level testbenches only
 #   make prog     program-level tests only
 #   make lint     elaborate the RTL and fail on any warning
-#   make wave PROG=02_alu    re-run one program and open the trace
+#   make wave PROG=02_alu    re-run one program and open the waveform
+#   make trace PROG=10_pipeline_demo   print a cycle-by-cycle pipeline trace
 #   make clean
 
 IVERILOG ?= iverilog
@@ -18,6 +19,7 @@ PYTHON   ?= python3
 RTL     := $(sort $(wildcard rtl/*.v rtl/core/*.v rtl/csr/*.v))
 SOC     := sim/msrv32_soc.v
 SYS_TB  := tb/tb_msrv32_top.v
+TRC_TB  := tb/tb_msrv32_trace.v
 UNIT_TB := $(sort $(wildcard tb/unit/*.v))
 UNITS   := $(notdir $(basename $(UNIT_TB)))
 
@@ -29,7 +31,7 @@ IVFLAGS := -g2005 -Wall
 CYCLES  ?= 20000
 PROG    ?= 01_smoke
 
-.PHONY: all test unit prog lint wave clean
+.PHONY: all test unit prog lint wave trace clean
 
 all: test
 
@@ -60,7 +62,7 @@ unit: | $(BUILD)
 # ---------------------------------------------------------------- program tests
 
 $(BUILD)/%.hex: tests/%.s tests/assemble.py | $(BUILD)
-	@$(PYTHON) tests/assemble.py $< $@ > /dev/null
+	@$(PYTHON) tests/assemble.py $< $@ $(BUILD)/$*.listing.json > /dev/null
 
 $(BUILD)/system.vvp: $(RTL) $(SOC) $(SYS_TB) | $(BUILD)
 	@$(IVERILOG) $(IVFLAGS) -s tb_msrv32_top -o $@ $(RTL) $(SOC) $(SYS_TB)
@@ -71,6 +73,19 @@ prog: $(BUILD)/system.vvp $(HEX)
 	   out=$$($(VVP) $(BUILD)/system.vvp +PROG=$$h +MAXCYCLES=$(CYCLES)); echo "  $$out"; \
 	   case "$$out" in *PASS*) ;; *) fail=1 ;; esac; \
 	 done; exit $$fail
+
+# ---------------------------------------------------------------- trace
+
+$(BUILD)/trace.vvp: $(RTL) $(SOC) $(TRC_TB) | $(BUILD)
+	@$(IVERILOG) $(IVFLAGS) -s tb_msrv32_trace -o $@ $(RTL) $(SOC) $(TRC_TB)
+
+# Runs one program and prints what each pipeline stage held, cycle by cycle.
+# TRACE_JSON=<file> writes the same thing as JSON instead of printing it.
+trace: $(BUILD)/trace.vvp $(BUILD)/$(PROG).hex
+	@$(VVP) $(BUILD)/trace.vvp +PROG=$(BUILD)/$(PROG).hex \
+	        +TRACE=$(BUILD)/$(PROG).tsv +MAXCYCLES=$(CYCLES) > /dev/null
+	@$(PYTHON) tools/trace.py $(BUILD)/$(PROG).tsv $(BUILD)/$(PROG).listing.json \
+	        $(if $(TRACE_JSON),--json $(TRACE_JSON),)
 
 # ---------------------------------------------------------------- waveform
 
