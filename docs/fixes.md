@@ -35,7 +35,7 @@ assembled.
 
 ## Functional bugs
 
-Six defects that change what the hardware does. Each is listed with the test that
+Seven defects that change what the hardware does. Each is listed with the test that
 fails if the fix is reverted.
 
 ### 1. Interrupt requests never reached `mip`

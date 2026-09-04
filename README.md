@@ -181,5 +181,5 @@ simulation top — no clock, no reset, no instruction stream, and not one testbe
 file anywhere in the tree. The core was never synthesised either.
 
 Consolidating it into a single portable design and giving it a real test suite
-turned up six functional bugs. [docs/fixes.md](docs/fixes.md) lists each one, what
+turned up seven functional bugs. [docs/fixes.md](docs/fixes.md) lists each one, what
 it broke, and the test that now catches it.
